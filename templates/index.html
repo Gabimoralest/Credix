@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Credix — Análisis de Aprobación Crediticia</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<link rel="stylesheet" href="/static/Styles.css">
+</head>
+<body>
+<div id="loading"><div class="spinner"></div><p>Cargando datos...</p></div>
+<div class="tip" id="tip"></div>
+
+<div class="app-layout" id="app-layout" style="display:none">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-icon">C</div>
+      <span class="sidebar-logo-text">Credix</span>
+    </div>
+
+    <div class="sidebar-section-label">Navegación</div>
+
+    <nav class="sidebar-nav">
+      <div class="sidebar-item active" data-tab="ov">
+        <div class="sidebar-item-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--blue)"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        </div>
+        <div class="sidebar-item-body">
+          <span class="sidebar-item-label">Overview</span>
+          <span class="sidebar-item-desc">Resumen del dataset</span>
+        </div>
+        <div class="sidebar-item-dot"></div>
+      </div>
+
+      <div class="sidebar-item" data-tab="o1">
+        <div class="sidebar-item-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted)"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        </div>
+        <div class="sidebar-item-body">
+          <span class="sidebar-item-label">Variables Discriminantes</span>
+          <span class="sidebar-item-desc">¿Qué factores predicen la aprobación?</span>
+        </div>
+        <div class="sidebar-item-dot"></div>
+      </div>
+
+      <div class="sidebar-item" data-tab="o2">
+        <div class="sidebar-item-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted)"><circle cx="12" cy="12" r="3"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><circle cx="5" cy="5" r="2"/></svg>
+        </div>
+        <div class="sidebar-item-body">
+          <span class="sidebar-item-label">Segmentación K-Means</span>
+          <span class="sidebar-item-desc">¿Existen perfiles distintos?</span>
+        </div>
+        <div class="sidebar-item-dot"></div>
+      </div>
+
+      <div class="sidebar-item" data-tab="o3">
+        <div class="sidebar-item-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted)"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <div class="sidebar-item-body">
+          <span class="sidebar-item-label">Modelos de Clasificación</span>
+          <span class="sidebar-item-desc">¿Qué modelo predice mejor?</span>
+        </div>
+        <div class="sidebar-item-dot"></div>
+      </div>
+
+      <div class="sidebar-divider"></div>
+
+      <div class="sidebar-item" data-tab="pred">
+        <div class="sidebar-item-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--purple)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </div>
+        <div class="sidebar-item-body">
+          <span class="sidebar-item-label">Simulador de Aprobación</span>
+          <span class="sidebar-item-desc">Simula tu probabilidad de crédito</span>
+        </div>
+        <div class="sidebar-item-dot"></div>
+      </div>
+    </nav>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main-wrap" id="main-wrap">
+    <div class="header" id="hdr">
+      <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="header-kpis">
+        <div class="kpi-chip g"><span class="kv" id="kpi-apr">—</span><span class="kl">Aprobados</span></div>
+        <div class="kpi-chip b"><span class="kv" id="kpi-auc">—</span><span class="kl">XGBoost AUC-ROC</span></div>
+        <div class="kpi-chip o"><span class="kv" id="kpi-k">K = —</span><span class="kl">Clusters óptimos</span></div>
+      </div>
+    </div>
+
+    <div class="tabs-wrap" id="tabs" style="display:none">
+      <div class="tab active" data-tab="ov">Overview</div>
+      <div class="tab" data-tab="o1">Variables Discriminantes</div>
+      <div class="tab" data-tab="o2">Segmentación K-Means</div>
+      <div class="tab" data-tab="o3">Modelos de Clasificación</div>
+      <div class="tab" data-tab="pred">Predictor</div>
+    </div>
+
+    <div class="content" id="cnt">
+
+<!-- OVERVIEW -->
+<div class="section active" id="tab-ov">
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-body">
+      <div class="hero-badge">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Minería de Datos · 2026
+      </div>
+      <h1 class="hero-title">Análisis de <span>Aprobación</span> Crediticia</h1>
+      <p class="hero-desc">Explora los factores financieros que determinan la aprobación de créditos mediante algoritmos de clasificación supervisada y segmentación no supervisada.</p>
+      <div class="hero-actions">
+        <button class="hero-btn-primary" onclick="document.querySelector('[data-tab=pred]').click()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          Predecir aprobación
+        </button>
+        <button class="hero-btn-secondary" onclick="document.querySelector('[data-tab=o1]').click()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          Explorar análisis
+        </button>
+      </div>
+
+    </div>
+    <div class="hero-image">
+      <img src="/static/model.png" alt="Modelo crediticio" style="width:100%;max-width:420px;object-fit:cover;border-radius:50%;aspect-ratio:1/1;filter:drop-shadow(0 8px 32px rgba(56,189,248,0.15))">
+    </div>
+  </div>
+
+  <!-- KPI cards grandes -->
+  <div class="kpi-cards">
+    <div class="kpi-card">
+      <div class="kpi-card-icon" style="background:var(--blueB)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+      <div class="kpi-card-body"><div class="kpi-card-val">44,540</div><div class="kpi-card-label">Total solicitudes</div><div class="kpi-card-sub">100% del dataset</div></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-card-icon" style="background:var(--greenB)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+      <div class="kpi-card-body"><div class="kpi-card-val" id="kpi-apr2" style="color:var(--green)">—</div><div class="kpi-card-label">Aprobados</div><div class="kpi-card-sub">22.3% del total</div></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-card-icon" style="background:var(--redB)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
+      <div class="kpi-card-body"><div class="kpi-card-val" style="color:var(--red)">34,598</div><div class="kpi-card-label">Rechazados</div><div class="kpi-card-sub">77.7% del total</div></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-card-icon" style="background:var(--orangeB)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+      <div class="kpi-card-body"><div class="kpi-card-val" style="color:var(--orange)">100%</div><div class="kpi-card-label">Llegan al modelo</div><div class="kpi-card-sub">13 variables seleccionadas</div></div>
+    </div>
+  </div>
+
+  <div class="ov-charts-row">
+    <div class="card ov-card-half">
+      <div class="card-title">Distribución de loan_status</div>
+      <div class="card-sub">Aprobados vs rechazados sobre el total de solicitudes</div>
+      <div style="display:grid;grid-template-columns:1fr 160px;gap:1rem;align-items:center">
+        <div id="g01"></div><div id="g01dona"></div>
+      </div>
+      <div class="insight ins-red" id="i01">—</div>
+    </div>
+    <div class="card ov-card-half">
+      <div class="card-title">Flujo de aprobación — evaluación completa del perfil</div>
+      <div class="card-sub">Todas las solicitudes son evaluadas por el modelo XGBoost</div>
+      <div id="g02"></div>
+      <div class="insight ins-blue" id="i02">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- OBJ 1 -->
+<div class="section" id="tab-o1">
+  <div class="sec-intro"><h2>Objetivo 1 — Variables Discriminantes</h2><p>Variables con mayor capacidad para diferenciar solicitudes aprobadas de rechazadas</p></div>
+  <div class="grid g2" style="margin-bottom:1.25rem">
+    <div class="card"><div class="card-title">% del ingreso destinado al préstamo</div><div class="card-sub">loan_percent_income — violin + boxplot por resultado</div><div id="g03"></div><div class="insight ins-green" id="i03">—</div></div>
+    <div class="card"><div class="card-title">Tasa de interés del préstamo</div><div class="card-sub">loan_int_rate — violin + boxplot por resultado</div><div id="g04"></div><div class="insight ins-orange" id="i04">—</div></div>
+  </div>
+  <div class="grid g2" style="margin-bottom:1.25rem">
+    <div class="card"><div class="card-title">Tasa de aprobación por propósito del préstamo</div><div class="card-sub">Ordenado de mayor a menor — línea naranja = promedio general</div><div id="g05"></div><div class="insight ins-blue" id="i05">—</div></div>
+    <div class="card"><div class="card-title">Diferencia (Δ) entre grupos por variable</div><div class="card-sub">Lollipop divergente — magnitud y dirección del efecto</div><div id="g07"></div><div class="insight ins-green" id="i07">—</div></div>
+  </div>
+  <div class="grid gf">
+    <div class="card"><div class="card-title">Variables que no predicen la aprobación</div><div class="card-sub">Diferencia estadísticamente insignificante entre aprobados y rechazados</div><div id="g06"></div><div class="insight ins-red">El puntaje de crédito, género y educación son casi idénticos entre grupos. El modelo discrimina por comportamiento financiero, no por perfil personal.</div></div>
+  </div>
+</div>
+
+<!-- OBJ 2 -->
+<div class="section" id="tab-o2">
+  <div class="sec-intro"><h2>Objetivo 2 — Segmentación K-Means</h2><p>Clustering sobre el dataset completo · 8 variables continuas escaladas</p></div>
+  <div class="grid g2" style="margin-bottom:1.25rem">
+    <div class="card"><div class="card-title">Selección del K óptimo — codo y silhouette</div><div class="card-sub">K con mayor Silhouette Score y codo más pronunciado</div><div id="g08"></div><div class="insight ins-blue" id="i08">—</div></div>
+    <div class="card"><div class="card-title">Tasa de aprobación por cluster</div><div class="card-sub">Línea naranja = promedio general</div><div id="g10"></div><div class="insight ins-orange" id="i10">—</div></div>
+  </div>
+  <div class="grid gf" style="margin-bottom:1.25rem">
+    <div class="card"><div class="card-title">Visualización PCA — separación de clusters en 2D</div><div class="card-sub">800 puntos proyectados con PCA · cada color es un cluster</div><div id="gpca"></div><div class="insight ins-blue">La superposición de puntos refleja el Silhouette Score bajo (0.22) — los clusters no se separan perfectamente, consistente con datos financieros continuos.</div></div>
+  </div>
+  <div class="grid g2" style="margin-bottom:1.25rem">
+    <div class="card"><div class="card-title">Radar de perfil por cluster</div><div class="card-sub">8 variables superpuestas — separación demográfica, no de riesgo</div><div id="gradar"></div><div class="insight ins-blue">Cluster 0 domina en experiencia e historial. Cluster 1 en carga del préstamo. Tasas de aprobación casi iguales confirman que la demografía no es el factor decisivo.</div></div>
+    <div class="card"><div class="card-title">Distribución de % ingreso por cluster</div><div class="card-sub">loan_percent_income — variable más discriminante del modelo</div><div id="gviolin_cluster"></div><div class="insight ins-orange">La variable más predictiva se distribuye similarmente entre clusters, reforzando que los grupos no se diferencian por riesgo financiero.</div></div>
+  </div>
+  <div class="grid gf">
+    <div class="card"><div class="card-title">Perfil promedio normalizado por cluster — heatmap</div><div class="card-sub">Valores normalizados 0–1 · valores reales anotados</div><div id="g09"></div><div class="insight ins-green" id="i09">—</div></div>
+  </div>
+</div>
+
+<!-- OBJ 3 -->
+<div class="section" id="tab-o3">
+  <div class="sec-intro"><h2>Objetivo 3 — Modelos de Clasificación Supervisada</h2><p>Regresión Logística · Random Forest · XGBoost — SMOTE aplicado en entrenamiento</p></div>
+  <div class="grid gf" style="margin-bottom:1.25rem">
+    <div class="card"><div class="card-title">Scorecard de métricas — comparación de modelos</div><div class="card-sub">Métricas del conjunto de test · Train Acc para detectar overfitting</div><div id="g11"></div><div class="insight ins-green" id="i11">—</div></div>
+  </div>
+  <div class="grid g2" style="margin-bottom:1.25rem">
+    <div class="card"><div class="card-title">Curvas ROC — comparación de 3 modelos</div><div class="card-sub">Tradeoff TPR/FPR · diagonal = modelo aleatorio (AUC 0.5)</div><div id="g12"></div><div class="insight ins-green" id="i12">—</div></div>
+    <div class="card"><div class="card-title">Train vs Test Accuracy — análisis de overfitting</div><div class="card-sub">Brecha entre entrenamiento y test</div><div id="g15"></div><div class="insight ins-orange" id="i15">—</div></div>
+  </div>
+  <div class="grid gf" style="margin-bottom:1.25rem">
+    <div class="card"><div class="card-title">Matriz de confusión — XGBoost (mejor modelo)</div><div class="card-sub">Errores reales sobre el conjunto de test</div><div id="g13"></div><div class="insight ins-blue" id="i13">—</div></div>
+  </div>
+  <div class="grid gf" style="margin-bottom:1.25rem">
+    <div class="card"><div class="card-title">Matrices de confusión — comparación de los 3 modelos</div><div class="card-sub">TP · FP · FN · TN lado a lado</div><div id="g3cm" style="display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem"></div><div class="insight ins-orange">XGBoost reduce los falsos negativos respecto a Reg. Logística. Para el negocio, rechazar un buen cliente es el error de mayor costo.</div></div>
+  </div>
+  <div class="grid g2" style="margin-bottom:1.25rem">
+    <div class="card">
+      <div class="card-title">Curva Precision-Recall — XGBoost</div>
+      <div class="card-sub">Ajuste del umbral · tradeoff entre precisión y sensibilidad</div>
+      <div id="gpr"></div>
+      <div class="insight ins-green">Bajar el umbral por debajo de 0.5 aumenta el Recall a costa de menor Precisión.</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Feature importance — Random Forest</div>
+      <div class="card-sub">Importancia por reducción de impureza Gini · top 10 variables</div>
+      <div id="g14a"></div>
+      <div class="insight ins-blue" id="i14a">—</div>
+    </div>
+  </div>
+  <div class="grid gf">
+    <div class="card">
+      <div class="card-title">Feature importance — XGBoost</div>
+      <div class="card-sub">Importancia por ganancia de splits · top 10 variables</div>
+      <div id="g14b"></div>
+      <div class="insight ins-green" id="i14b">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- PREDICTOR -->
+<div class="section" id="tab-pred">
+  <div class="sec-intro">
+    <h2>Simulador de Aprobación</h2>
+    <p>Ingresa los datos del préstamo · 6 campos · modelo XGBoost entrenado con variables seleccionadas por evidencia (AUC 0.9767)</p>
+  </div>
+  <div class="pred-layout">
+    <div class="pred-form-wrap">
+      <div class="pred-step-header">
+        <div class="pred-step-badge">Perfil del solicitante</div>
+      </div>
+      <div class="pred-form">
+        <div class="pred-group pred-group-full">
+          <label class="pred-label">¿Tiene incumplimientos de préstamos anteriores?</label>
+          <select class="pred-input" id="p-default" style="border-color:var(--orange);background:#fffbf5">
+            <option value="">Seleccionar</option>
+            <option value="No">No</option>
+            <option value="Yes">Sí</option>
+          </select>
+          <span class="pred-hint">Variable más influyente del modelo — los incumplimientos previos tienen el mayor peso en la predicción</span>
+        </div>
+        <div class="pred-group">
+          <label class="pred-label">Ingreso anual (USD)</label>
+          <input class="pred-input" type="number" id="p-income" min="8000" max="271262" placeholder="ej. 66000 · rango: 8K–271K">
+          <span class="pred-hint">Media del dataset: $66,428 USD anuales</span>
+        </div>
+        <div class="pred-group">
+          <label class="pred-label">Monto del préstamo (USD)</label>
+          <input class="pred-input" type="number" id="p-loan" min="500" max="35000" placeholder="ej. 7500 · rango: 500–35K">
+          <span class="pred-hint">Media: $7,590 · 75% de solicitudes ≤ $12,000</span>
+        </div>
+        <div class="pred-group">
+          <label class="pred-label">Tasa de interés (%)</label>
+          <input class="pred-input" type="number" id="p-rate" min="5.42" max="20.0" step="0.01" placeholder="ej. 11.0 · rango: 5.42–20.0">
+          <span class="pred-hint">Media del dataset: 11.0%</span>
+        </div>
+        <div class="pred-group">
+          <label class="pred-label">Tipo de vivienda</label>
+          <select class="pred-input" id="p-home">
+            <option value="">Seleccionar</option>
+            <option value="MORTGAGE">Hipoteca</option>
+            <option value="OWN">Propia</option>
+            <option value="RENT">Alquiler</option>
+            <option value="OTHER">Otro</option>
+          </select>
+        </div>
+        <div class="pred-group">
+          <label class="pred-label">Propósito del préstamo</label>
+          <select class="pred-input" id="p-intent">
+            <option value="">Seleccionar</option>
+            <option value="EDUCATION">Educación</option>
+            <option value="HOMEIMPROVEMENT">Mejora del hogar</option>
+            <option value="MEDICAL">Médico</option>
+            <option value="PERSONAL">Personal</option>
+            <option value="VENTURE">Negocio</option>
+            <option value="DEBTCONSOLIDATION">Consolidación deuda</option>
+          </select>
+        </div>
+        <div class="pred-group pred-group-full">
+          <button class="pred-btn" onclick="runPredictor()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            Simular aprobación
+          </button>
+        </div>
+      </div>    </div>
+    <div class="pred-result-wrap" id="pred-result-wrap" style="display:none">
+      <div class="pred-verdict-card" id="pred-verdict-card">
+        <div class="pred-verdict-icon" id="pred-verdict-icon">✓</div>
+        <div class="pred-verdict-label" id="pred-verdict-label">APROBADO</div>
+        <div class="pred-verdict-pct" id="pred-verdict-pct">—</div>
+        <div class="pred-bar-wrap"><div class="pred-bar-fill" id="pred-bar-fill"></div></div>
+      </div>
+      <div class="card" style="margin-top:1rem">
+        <div class="card-title">Perfil vs aprobados del dataset</div>
+        <div class="card-sub">Comparación de tu perfil contra el promedio de solicitudes aprobadas</div>
+        <div id="pred-profile-table"></div>
+      </div>
+      <div class="card" style="margin-top:1rem">
+        <div class="card-title">Veredicto por modelo</div>
+        <div class="card-sub">Estimación basada en los pesos de cada algoritmo</div>
+        <div class="pred-models" id="pred-models"></div>
+      </div>
+
+      <div class="card" id="pred-recs-card" style="margin-top:1rem;display:none">
+        <div class="card-title">Recomendaciones para mejorar</div>
+        <div class="card-sub">Basadas en los puntos más débiles del perfil</div>
+        <div id="pred-recs"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- fin #cnt -->
+
+    </div><!-- fin main-wrap -->
+  </div><!-- fin app-layout -->
+
+<script src="/static/scripts.js"></script>
+</body>
+</html>
